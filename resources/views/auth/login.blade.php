@@ -125,19 +125,20 @@
                             <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
                                 <i class="fas fa-sign-in-alt me-2"></i>Entrar
                             </button>
-                            
-                            <!-- 🔥 BOTÃO DE CADASTRAR 🔥 -->
-                            <a href="{{ route('register') }}" class="btn btn-outline-primary btn-lg w-100">
-                                <i class="fas fa-user-plus me-2"></i>Criar Nova Conta
-                            </a>
-                            
-                            <!-- Links extras -->
-                            <div class="mt-4 text-center">
-                                <a href="{{ route('password.request') }}" class="text-decoration-none">
-                                    Esqueci minha senha
-                                </a>
-                            </div>
                         </form>
+
+                        <!-- Botão de cadastro (fora do formulário para evitar qualquer interferência) -->
+                        <a href="{{ route('register') }}" class="btn btn-outline-primary btn-lg w-100 mt-2">
+                            <i class="fas fa-user-plus me-2"></i>Criar Nova Conta
+                        </a>
+                        
+                        <!-- Links extras -->
+                        <div class="mt-4 text-center">
+                            {{-- Link de esqueci a senha desabilitado até implementar as rotas/métodos --}}
+                            {{-- <a href="{{ route('password.request') }}" class="text-decoration-none">
+                                Esqueci minha senha
+                            </a> --}}
+                        </div>
                         
                         <!-- Mensagem sistema -->
                         <div class="mt-5 pt-4 text-center border-top">

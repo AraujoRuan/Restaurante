@@ -1,206 +1,102 @@
-<?php
+@extends('layouts.app')
 
-namespace App\Http\Controllers;
+@section('content')
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-2">Dashboard</h1>
+    <p class="text-muted mb-4">
+        Olá, {{ $user->name ?? 'usuário' }}. Hoje é {{ $today }}.
+    </p>
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use App\Models\Order;
-use App\Models\Product;
-use App\Models\Expense;
-use App\Models\User;
-use Carbon\Carbon;
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="card border-left-primary h-100">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase mb-2">Vendas Hoje</h6>
+                    <h3>R$ {{ number_format($todaySales, 2, ',', '.') }}</h3>
+                </div>
+            </div>
+        </div>
 
-class DashboardController extends Controller
-{
-    /**
-     * Exibir a página principal do dashboard
-     */
-    public function index()
-    {
-        $user = Auth::user();
-        $today = Carbon::today();
-        
-        // Dados comuns para todos os usuários
-        $data = [
-            'user' => $user,
-            'today' => $today->format('d/m/Y'),
-        ];
-        
-        // Se for CLIENTE
-        if (($user->role ?? '') === 'cliente') {
-            $data = array_merge($data, $this->getClienteData($user));
-            return view('dashboard.cliente', $data);
-        }
-        
-        // Dashboard para funcionários
-        $data = array_merge($data, $this->getFuncionarioData($user));
-        
-        return view('dashboard.index', $data);
-    }
-    
-    /**
-     * Dados específicos para clientes
-     */
-    private function getClienteData($user)
-    {
-        $today = Carbon::today();
-        
-        return [
-            'meus_pedidos' => Order::where('user_id', $user->id)
-                ->orderBy('created_at', 'desc')
-                ->take(5)
-                ->get(),
-            
-            'pedidos_ativos' => Order::where('user_id', $user->id)
-                ->whereIn('status', ['pendente', 'preparando', 'pronto'])
-                ->count(),
-            
-            'total_gasto' => Order::where('user_id', $user->id)
-                ->where('status', '!=', 'cancelado')
-                ->sum('total_amount'),
-            
-            'pedidos_hoje' => Order::where('user_id', $user->id)
-                ->whereDate('created_at', $today)
-                ->count(),
-        ];
-    }
-    
-    /**
-     * Dados para funcionários
-     */
-    private function getFuncionarioData($user)
-    {
-        $today = Carbon::today();
-        $yesterday = Carbon::yesterday();
-        
-        // Calcular vendas com fallback para 0
-        try {
-            $vendas_hoje = Order::whereDate('created_at', $today)
-                ->where('status', '!=', 'cancelado')
-                ->sum('total_amount') ?: 0;
-        } catch (\Exception $e) {
-            $vendas_hoje = 0;
-        }
-        
-        try {
-            $vendas_ontem = Order::whereDate('created_at', $yesterday)
-                ->where('status', '!=', 'cancelado')
-                ->sum('total_amount') ?: 0;
-        } catch (\Exception $e) {
-            $vendas_ontem = 0;
-        }
-        
-        try {
-            $pedidos_pendentes = Order::where('status', 'pendente')->count() ?: 0;
-        } catch (\Exception $e) {
-            $pedidos_pendentes = 0;
-        }
-        
-        try {
-            $pedidos_preparando = Order::where('status', 'preparando')->count() ?: 0;
-        } catch (\Exception $e) {
-            $pedidos_preparando = 0;
-        }
-        
-        try {
-            $pedidos_prontos = Order::where('status', 'pronto')->count() ?: 0;
-        } catch (\Exception $e) {
-            $pedidos_prontos = 0;
-        }
-        
-        try {
-            $pedidos_recentes = Order::with(['user'])
-                ->orderBy('created_at', 'desc')
-                ->take(10)
-                ->get();
-        } catch (\Exception $e) {
-            $pedidos_recentes = collect([]);
-        }
-        
-        return [
-            'vendas_hoje' => $vendas_hoje,
-            'vendas_ontem' => $vendas_ontem,
-            'pedidos_pendentes' => $pedidos_pendentes,
-            'pedidos_preparando' => $pedidos_preparando,
-            'pedidos_prontos' => $pedidos_prontos,
-            'pedidos_recentes' => $pedidos_recentes,
-        ];
-    }
-    
-    /**
-     * Método para API - métricas do dashboard
-     */
-    public function metrics(Request $request)
-    {
-        $days = $request->get('days', 7);
-        $startDate = Carbon::now()->subDays($days);
-        
-        $data = [];
-        
-        // Vendas dos últimos X dias
-        for ($i = 0; $i < $days; $i++) {
-            $date = Carbon::now()->subDays($i);
-            try {
-                $sales = Order::whereDate('created_at', $date)
-                    ->where('status', '!=', 'cancelado')
-                    ->sum('total_amount') ?: 0;
-            } catch (\Exception $e) {
-                $sales = 0;
-            }
-            
-            $data['sales'][] = [
-                'date' => $date->format('d/m'),
-                'amount' => $sales
-            ];
-        }
-        
-        // Pedidos por status
-        try {
-            $data['orders_by_status'] = [
-                'pendente' => Order::where('status', 'pendente')->count() ?: 0,
-                'preparando' => Order::where('status', 'preparando')->count() ?: 0,
-                'pronto' => Order::where('status', 'pronto')->count() ?: 0,
-                'entregue' => Order::where('status', 'entregue')->count() ?: 0,
-                'cancelado' => Order::where('status', 'cancelado')->count() ?: 0,
-            ];
-        } catch (\Exception $e) {
-            $data['orders_by_status'] = [
-                'pendente' => 0,
-                'preparando' => 0,
-                'pronto' => 0,
-                'entregue' => 0,
-                'cancelado' => 0,
-            ];
-        }
-        
-        return response()->json($data);
-    }
-    
-    /**
-     * Dashboard de vendas (gráficos)
-     */
-    public function salesChart(Request $request)
-    {
-        $period = $request->get('period', 'week');
-        
-        $data = [];
-        
-        if ($period === 'week') {
-            for ($i = 6; $i >= 0; $i--) {
-                $date = Carbon::now()->subDays($i);
-                try {
-                    $sales = Order::whereDate('created_at', $date)
-                        ->where('status', '!=', 'cancelado')
-                        ->sum('total_amount') ?: 0;
-                } catch (\Exception $e) {
-                    $sales = 0;
-                }
-                
-                $data['labels'][] = $date->format('d/m');
-                $data['data'][] = $sales;
-            }
-        }
-        
-        return response()->json($data);
-    }
-}
+        <div class="col-md-3 mb-4">
+            <div class="card border-left-success h-100">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase mb-2">Vendas do Mês</h6>
+                    <h3>R$ {{ number_format($monthSales, 2, ',', '.') }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="card border-left-warning h-100">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase mb-2">Pedidos Hoje</h6>
+                    <h3>{{ $ordersToday }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="card border-left-danger h-100">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase mb-2">Pedidos Pendentes</h6>
+                    <h3>{{ $pendingOrders }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Mesas</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-1">
+                        <strong>Mesas ocupadas:</strong> {{ $activeTables }}
+                    </p>
+                    <p class="mb-0">
+                        <strong>Total de mesas:</strong> {{ $totalTables }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Pedidos Recentes</h5>
+                </div>
+                <div class="card-body">
+                    @if($recentOrders->count())
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Total</th>
+                                        <th>Status</th>
+                                        <th>Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($recentOrders as $order)
+                                        <tr>
+                                            <td>{{ $order->order_code ?? $order->id }}</td>
+                                            <td>R$ {{ number_format($order->final_amount, 2, ',', '.') }}</td>
+                                            <td>{{ $order->status }}</td>
+                                            <td>{{ $order->created_at->format('d/m H:i') }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <p class="text-muted mb-0">Nenhum pedido recente.</p>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
