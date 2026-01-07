@@ -44,6 +44,13 @@ class DashboardController extends Controller
         $recentOrders = Order::orderByDesc('created_at')
             ->take(5)
             ->get();
+        
+        // Dados do cliente para o dashboard
+        $user = Auth::user();
+        $pedidos_hoje = Order::whereDate('created_at', $today)->count();
+        $pedidos_ativos = Order::whereIn('status', ['pending', 'preparing', 'ready'])->count();
+        $total_gasto = Order::where('status', 'completed')->sum('final_amount');
+        $meus_pedidos = Order::orderByDesc('created_at')->take(10)->get();
 
         return view('dashboard.index', [
             'user'          => Auth::user(),
@@ -55,6 +62,10 @@ class DashboardController extends Controller
             'activeTables'  => $activeTables,
             'totalTables'   => $totalTables,
             'recentOrders'  => $recentOrders,
+            'pedidos_hoje'  => $pedidos_hoje,
+            'pedidos_ativos' => $pedidos_ativos,
+            'total_gasto'   => $total_gasto,
+            'meus_pedidos'  => $meus_pedidos,
         ]);
     }
 }
