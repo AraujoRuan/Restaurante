@@ -163,6 +163,10 @@
                         <i class="fas fa-shopping-basket fa-4x text-muted mb-3"></i>
                         <h5 class="text-muted">Nenhum pedido realizado</h5>
                         <p class="text-muted">Faça seu primeiro pedido!</p>
+                        <a href="{{ route('pos.index') }}" class="btn btn-primary mt-3">
+                            <i class="fas fa-shopping-cart me-1"></i>
+                            Fazer meu primeiro pedido
+                        </a>
                     </div>
                     @endif
                 </div>

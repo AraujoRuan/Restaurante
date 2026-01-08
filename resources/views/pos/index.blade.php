@@ -1,432 +1,268 @@
-<?php
+@extends('layouts.app')
 
-namespace App\Http\Controllers;
+@section('content')
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h1 class="h4 mb-0">
+                <i class="fas fa-cash-register me-2"></i>
+                Ponto de Venda
+            </h1>
+            <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>
+                Voltar para o dashboard
+            </a>
+        </div>
+    </div>
 
-use App\Models\Product;
-use App\Models\Category;
-use App\Models\Table;
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Ingredient;
-use App\Models\StockMovement;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+    <div class="row">
+        <!-- Coluna esquerda: produtos -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-utensils me-1"></i> Produtos</span>
+                    <form class="d-flex" method="GET">
+                        <input type="text" name="search" value="{{ request('search') }}" class="form-control form-control-sm me-2" placeholder="Buscar produto...">
+                        <button class="btn btn-sm btn-primary" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </form>
+                </div>
+                <div class="card-body">
+                    @if(isset($categories) && $categories->count())
+                        <div class="mb-3">
+                            <div class="btn-group" role="group">
+                                <a href="{{ route('pos.index') }}" class="btn btn-sm btn-outline-secondary {{ request('category') ? '' : 'active' }}">Todos</a>
+                                @foreach($categories as $category)
+                                    <a href="{{ route('pos.index', ['category' => $category->id]) }}" class="btn btn-sm btn-outline-secondary {{ (int) request('category') === $category->id ? 'active' : '' }}">
+                                        {{ $category->name }}
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
 
-class POSController extends Controller
-{
-    public function index()
-    {
-        // Carregar produtos com suas categorias
-        $products = Product::with('category')
-            ->where('active', true)
-            ->orderBy('name')
-            ->get();
-            
-        // Carregar categorias
-        $categories = Category::orderBy('name')->get();
-        
-        // Carregar mesas disponíveis
-        $tables = Table::where('status', 'available')->get();
-        
-        // Debug: Verificar se há produtos
-        if ($products->isEmpty()) {
-            // Se não houver produtos, adicionar alguns de exemplo
-            $this->createSampleProducts();
-            $products = Product::with('category')->where('active', true)->get();
+                    @if(isset($products) && $products->count())
+                        <div class="row g-3">
+                            @foreach($products as $product)
+                                <div class="col-md-4">
+                                    <div class="card h-100 border-0 shadow-sm product-card" data-product-id="{{ $product->id }}" data-product-name="{{ $product->name }}" data-product-price="{{ $product->price }}">
+                                        <div class="card-body">
+                                            <h6 class="card-title mb-1">{{ $product->name }}</h6>
+                                            <small class="text-muted d-block mb-2">
+                                                {{ $product->category->name ?? 'Sem categoria' }}
+                                            </small>
+                                            @if($product->description)
+                                                <p class="small text-muted mb-2">{{ $product->description }}</p>
+                                            @endif
+                                            <strong>R$ {{ number_format($product->price, 2, ',', '.') }}</strong>
+                                        </div>
+                                        <div class="card-footer bg-transparent border-0 pt-0 pb-3 text-end">
+                                            <button class="btn btn-sm btn-success btn-add-to-order" type="button">
+                                                <i class="fas fa-plus me-1"></i>
+                                                Adicionar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-box-open fa-3x mb-3"></i>
+                            <p class="mb-0">Nenhum produto cadastrado ainda.</p>
+                            <small>Cadastre produtos e categorias para começar a vender.</small>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna direita: carrinho / resumo do pedido -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <i class="fas fa-receipt me-1"></i>
+                    Meu Pedido
+                </div>
+                <div class="card-body">
+                    <form id="pos-order-form" method="POST" action="{{ route('pos.store') }}">
+                        @csrf
+
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de pedido</label>
+                            <select name="type" class="form-select form-select-sm">
+                                <option value="dine_in">Mesa</option>
+                                <option value="takeaway">Balcão</option>
+                                <option value="delivery">Delivery</option>
+                            </select>
+                        </div>
+
+                        @if(isset($tables) && $tables->count())
+                            <div class="mb-3">
+                                <label class="form-label">Mesa (opcional)</label>
+                                <select name="table_id" class="form-select form-select-sm">
+                                    <option value="">Selecione uma mesa</option>
+                                    @foreach($tables as $table)
+                                        <option value="{{ $table->id }}">Mesa {{ $table->number }} ({{ $table->capacity }} pessoas)</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
+
+                        <div class="mb-3">
+                            <label class="form-label">Itens</label>
+                            <div id="order-items-empty" class="text-center text-muted py-3">
+                                <small>Nenhum item no pedido. Clique em "Adicionar" em um produto para começar.</small>
+                            </div>
+                            <div id="order-items-list" class="list-group d-none"></div>
+                        </div>
+
+                        <div class="mb-3 row g-2 align-items-center">
+                            <div class="col-6">
+                                <label class="form-label mb-0">Desconto</label>
+                                <input type="number" step="0.01" min="0" name="discount" class="form-control form-control-sm" value="0">
+                            </div>
+                            <div class="col-6 text-end">
+                                <div><small class="text-muted">Subtotal:</small> <span id="subtotal">R$ 0,00</span></div>
+                                <div><small class="text-muted">Taxa (10%):</small> <span id="tax">R$ 0,00</span></div>
+                                <div class="fw-bold">Total: <span id="total">R$ 0,00</span></div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100" id="btn-submit-order" disabled>
+                            <i class="fas fa-check me-1"></i>
+                            Finalizar pedido
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const orderItemsList = document.getElementById('order-items-list');
+        const orderItemsEmpty = document.getElementById('order-items-empty');
+        const subtotalEl = document.getElementById('subtotal');
+        const taxEl = document.getElementById('tax');
+        const totalEl = document.getElementById('total');
+        const discountInput = document.querySelector('input[name="discount"]');
+        const submitBtn = document.getElementById('btn-submit-order');
+        const form = document.getElementById('pos-order-form');
+
+        let items = [];
+
+        function formatMoney(value) {
+            return 'R$ ' + value.toFixed(2).replace('.', ',');
         }
-        
-        return view('pos.index', compact('products', 'categories', 'tables'));
-    }
-    
-    private function createSampleProducts()
-    {
-        // Verificar se já existe uma categoria
-        $category = Category::first();
-        
-        if (!$category) {
-            $category = Category::create([
-                'name' => 'Lanches',
-                'type' => 'food'
-            ]);
-        }
-        
-        // Criar alguns produtos de exemplo
-        $sampleProducts = [
-            [
-                'name' => 'X-Burger',
-                'description' => 'Hambúrguer com queijo',
-                'price' => 25.90,
-                'cost' => 10.00,
-                'category_id' => $category->id,
-                'active' => true,
-            ],
-            [
-                'name' => 'Batata Frita',
-                'description' => 'Porção de batata frita',
-                'price' => 15.90,
-                'cost' => 5.00,
-                'category_id' => $category->id,
-                'active' => true,
-            ],
-            [
-                'name' => 'Refrigerante',
-                'description' => 'Lata 350ml',
-                'price' => 8.90,
-                'cost' => 3.00,
-                'category_id' => $category->id,
-                'active' => true,
-            ],
-        ];
-        
-        foreach ($sampleProducts as $product) {
-            Product::firstOrCreate(
-                ['name' => $product['name']],
-                $product
-            );
-        }
-    }
-    
-    public function storeOrder(Request $request)
-    {
-        $validated = $request->validate([
-            'table_id' => 'nullable|exists:tables,id',
-            'type' => 'required|in:dine_in,takeaway,delivery',
-            'discount' => 'nullable|numeric|min:0',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_price' => 'required|numeric|min:0',
-            'notes' => 'nullable|string|max:500',
-        ]);
-        
-        DB::beginTransaction();
-        
-        try {
-            // Calcular totais
-            $subtotal = 0;
-            foreach ($validated['items'] as $item) {
-                $subtotal += $item['quantity'] * $item['unit_price'];
+
+        function renderItems() {
+            if (items.length === 0) {
+                orderItemsEmpty.classList.remove('d-none');
+                orderItemsList.classList.add('d-none');
+                orderItemsList.innerHTML = '';
+                submitBtn.disabled = true;
+                subtotalEl.textContent = 'R$ 0,00';
+                taxEl.textContent = 'R$ 0,00';
+                totalEl.textContent = 'R$ 0,00';
+                return;
             }
-            
-            $discount = $validated['discount'] ?? 0;
-            $tax = $subtotal * 0.10; // 10% de taxa
-            $finalAmount = $subtotal + $tax - $discount;
-            
-            // Criar pedido
-            $order = Order::create([
-                'order_code' => 'ORD' . time() . rand(100, 999),
-                'table_id' => $validated['table_id'] ?? null,
-                'user_id' => auth()->id(),
-                'type' => $validated['type'],
-                'status' => 'pending',
-                'total_amount' => $subtotal,
-                'discount' => $discount,
-                'tax' => $tax,
-                'final_amount' => $finalAmount,
-                'notes' => $validated['notes'] ?? null,
-            ]);
-            
-            // Adicionar itens e atualizar estoque
-            foreach ($validated['items'] as $item) {
-                $itemTotal = $item['quantity'] * $item['unit_price'];
-                
-                $orderItem = OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'total_price' => $itemTotal,
-                ]);
-                
-                // Atualizar estoque dos ingredientes
-                $this->updateInventory($item['product_id'], $item['quantity']);
-            }
-            
-            // Atualizar status da mesa se for dine_in
-            if ($order->table_id && $order->type === 'dine_in') {
-                Table::where('id', $order->table_id)->update(['status' => 'occupied']);
-            }
-            
-            DB::commit();
-            
-            Log::info('Pedido criado', [
-                'order_id' => $order->id,
-                'order_code' => $order->order_code,
-                'user_id' => auth()->id(),
-                'total' => $finalAmount,
-            ]);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Pedido criado com sucesso!',
-                'order_id' => $order->id,
-                'order_code' => $order->order_code,
-                'total' => number_format($finalAmount, 2, ',', '.'),
-            ]);
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            
-            Log::error('Erro ao criar pedido', [
-                'error' => $e->getMessage(),
-                'data' => $validated,
-                'user_id' => auth()->id(),
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao criar pedido: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
-    
-    private function updateInventory($productId, $quantity)
-    {
-        $product = Product::with('ingredients')->find($productId);
-        
-        if (!$product || !$product->ingredients) {
-            return;
-        }
-        
-        foreach ($product->ingredients as $ingredient) {
-            $quantityNeeded = $ingredient->pivot->quantity * $quantity;
-            
-            // Verificar se há estoque suficiente
-            if ($ingredient->current_stock < $quantityNeeded) {
-                throw new \Exception("Estoque insuficiente para {$ingredient->name}. Disponível: {$ingredient->current_stock}, Necessário: {$quantityNeeded}");
-            }
-            
-            // Atualizar estoque
-            $ingredient->current_stock -= $quantityNeeded;
-            $ingredient->save();
-            
-            // Registrar movimento de estoque
-            StockMovement::create([
-                'ingredient_id' => $ingredient->id,
-                'type' => 'exit',
-                'quantity' => $quantityNeeded,
-                'reason' => 'Venda do produto: ' . $product->name,
-                'user_id' => auth()->id(),
-            ]);
-        }
-    }
-    
-    public function getProducts()
-    {
-        $products = Product::with('category')
-            ->where('active', true)
-            ->orderBy('name')
-            ->get()
-            ->map(function ($product) {
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'price' => (float) $product->price,
-                    'category_id' => $product->category_id,
-                    'category_name' => $product->category->name,
-                    'description' => $product->description,
-                    'image' => $product->image,
-                ];
+
+            orderItemsEmpty.classList.add('d-none');
+            orderItemsList.classList.remove('d-none');
+            orderItemsList.innerHTML = '';
+
+            let subtotal = 0;
+
+            items.forEach((item, index) => {
+                const lineTotal = item.quantity * item.price;
+                subtotal += lineTotal;
+
+                const row = document.createElement('div');
+                row.className = 'list-group-item d-flex justify-content-between align-items-center';
+                row.innerHTML = `
+                    <div>
+                        <strong>${item.name}</strong><br>
+                        <small class="text-muted">Qtd: 
+                            <button type="button" class="btn btn-sm btn-outline-secondary btn-qty" data-index="${index}" data-delta="-1">-</button>
+                            <span class="mx-1">${item.quantity}</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary btn-qty" data-index="${index}" data-delta="1">+</button>
+                        </small>
+                    </div>
+                    <div class="text-end">
+                        <div class="small text-muted">${formatMoney(item.price)}</div>
+                        <strong>${formatMoney(lineTotal)}</strong>
+                        <button type="button" class="btn btn-sm btn-link text-danger p-0 d-block mt-1 btn-remove" data-index="${index}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <input type="hidden" name="items[${index}][product_id]" value="${item.id}">
+                    <input type="hidden" name="items[${index}][quantity]" value="${item.quantity}">
+                    <input type="hidden" name="items[${index}][unit_price]" value="${item.price}">
+                `;
+                orderItemsList.appendChild(row);
             });
-            
-        return response()->json($products);
-    }
-    
-    public function filterProducts(Request $request)
-    {
-        $query = Product::with('category')->where('active', true);
-        
-        if ($request->has('category_id') && $request->category_id) {
-            $query->where('category_id', $request->category_id);
+
+            const discount = parseFloat(discountInput.value || '0');
+            const tax = subtotal * 0.10;
+            const total = subtotal + tax - discount;
+
+            subtotalEl.textContent = formatMoney(subtotal);
+            taxEl.textContent = formatMoney(tax);
+            totalEl.textContent = formatMoney(Math.max(total, 0));
+            submitBtn.disabled = total <= 0;
         }
-        
-        if ($request->has('search') && $request->search) {
-            $query->where('name', 'like', '%' . $request->search . '%');
-        }
-        
-        $products = $query->orderBy('name')->get();
-        
-        return response()->json($products);
-    }
-    
-    public function getActiveOrders()
-    {
-        $orders = Order::with(['table', 'items.product'])
-            ->whereIn('status', ['pending', 'preparing', 'ready'])
-            ->orderBy('created_at', 'asc')
-            ->get()
-            ->map(function ($order) {
-                return [
-                    'id' => $order->id,
-                    'order_code' => $order->order_code,
-                    'table' => $order->table ? 'Mesa ' . $order->table->number : 'Balcão',
-                    'type' => $this->getOrderTypeLabel($order->type),
-                    'status' => $this->getOrderStatusLabel($order->status),
-                    'total' => 'R$ ' . number_format($order->final_amount, 2, ',', '.'),
-                    'items' => $order->items->map(function ($item) {
-                        return [
-                            'product' => $item->product->name,
-                            'quantity' => $item->quantity,
-                        ];
-                    }),
-                    'created_at' => $order->created_at->format('H:i'),
-                ];
-            });
-            
-        return response()->json($orders);
-    }
-    
-    public function updateOrderStatus(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'status' => 'required|in:pending,preparing,ready,served,completed,cancelled',
-        ]);
-        
-        $order = Order::findOrFail($id);
-        
-        // Se for completar pedido de mesa, liberar a mesa
-        if ($validated['status'] === 'completed' && $order->table_id && $order->type === 'dine_in') {
-            Table::where('id', $order->table_id)->update(['status' => 'available']);
-        }
-        
-        // Se for cancelar, reverter estoque
-        if ($validated['status'] === 'cancelled') {
-            $this->revertInventory($order);
-        }
-        
-        $order->update(['status' => $validated['status']]);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Status do pedido atualizado!',
-        ]);
-    }
-    
-    private function revertInventory($order)
-    {
-        foreach ($order->items as $item) {
-            $product = Product::with('ingredients')->find($item->product_id);
-            
-            if ($product && $product->ingredients) {
-                foreach ($product->ingredients as $ingredient) {
-                    $quantityReverted = $ingredient->pivot->quantity * $item->quantity;
-                    
-                    // Retornar ao estoque
-                    $ingredient->current_stock += $quantityReverted;
-                    $ingredient->save();
-                    
-                    // Registrar movimento de estoque
-                    StockMovement::create([
-                        'ingredient_id' => $ingredient->id,
-                        'type' => 'entry',
-                        'quantity' => $quantityReverted,
-                        'reason' => 'Cancelamento do pedido: ' . $order->order_code,
-                        'user_id' => auth()->id(),
-                    ]);
+
+        document.querySelectorAll('.btn-add-to-order').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const card = this.closest('.product-card');
+                const id = parseInt(card.dataset.productId);
+                const name = card.dataset.productName;
+                const price = parseFloat(card.dataset.productPrice);
+
+                const existing = items.find(i => i.id === id);
+                if (existing) {
+                    existing.quantity += 1;
+                } else {
+                    items.push({ id, name, price, quantity: 1 });
                 }
-            }
-        }
-    }
-    
-    private function getOrderTypeLabel($type)
-    {
-        $labels = [
-            'dine_in' => 'Mesa',
-            'takeaway' => 'Balcão',
-            'delivery' => 'Delivery',
-        ];
-        
-        return $labels[$type] ?? $type;
-    }
-    
-    private function getOrderStatusLabel($status)
-    {
-        $labels = [
-            'pending' => 'Pendente',
-            'preparing' => 'Preparando',
-            'ready' => 'Pronto',
-            'served' => 'Servido',
-            'completed' => 'Completado',
-            'cancelled' => 'Cancelado',
-        ];
-        
-        return $labels[$status] ?? $status;
-    }
-    
-    public function getTablesStatus()
-    {
-        $tables = Table::orderBy('number')->get()->map(function ($table) {
-            return [
-                'id' => $table->id,
-                'number' => $table->number,
-                'capacity' => $table->capacity,
-                'status' => $table->status,
-                'status_label' => $this->getTableStatusLabel($table->status),
-                'status_class' => $this->getTableStatusClass($table->status),
-            ];
+
+                renderItems();
+            });
         });
-        
-        return response()->json($tables);
-    }
-    
-    private function getTableStatusLabel($status)
-    {
-        $labels = [
-            'available' => 'Disponível',
-            'occupied' => 'Ocupada',
-            'reserved' => 'Reservada',
-            'maintenance' => 'Manutenção',
-        ];
-        
-        return $labels[$status] ?? $status;
-    }
-    
-    private function getTableStatusClass($status)
-    {
-        $classes = [
-            'available' => 'success',
-            'occupied' => 'danger',
-            'reserved' => 'warning',
-            'maintenance' => 'secondary',
-        ];
-        
-        return $classes[$status] ?? 'secondary';
-    }
-    
-    public function getDashboardData()
-    {
-        $today = now()->startOfDay();
-        $monthStart = now()->startOfMonth();
-        
-        $data = [
-            'today_sales' => Order::where('created_at', '>=', $today)
-                ->where('status', 'completed')
-                ->sum('final_amount'),
-                
-            'today_orders' => Order::where('created_at', '>=', $today)->count(),
-            
-            'pending_orders' => Order::where('status', 'pending')->count(),
-            
-            'active_tables' => Table::where('status', 'occupied')->count(),
-            
-            'total_tables' => Table::count(),
-            
-            'recent_orders' => Order::with('table')
-                ->latest()
-                ->take(5)
-                ->get()
-                ->map(function ($order) {
-                    return [
-                        'code' => $order->order_code,
-                        'table' => $order->table ? 'Mesa ' . $order->table->number : 'Balcão',
-                        'total' => 'R$ ' . number_format($order->final_amount, 2, ',', '.'),
-                        'status' => $order->status,
-                        'time' => $order->created_at->diffForHumans(),
-                    ];
-                }),
-        ];
-        
-        return response()->json($data);
-    }
-}
+
+        orderItemsList.addEventListener('click', function (e) {
+            if (e.target.closest('.btn-qty')) {
+                const btn = e.target.closest('.btn-qty');
+                const index = parseInt(btn.dataset.index);
+                const delta = parseInt(btn.dataset.delta);
+                items[index].quantity += delta;
+                if (items[index].quantity <= 0) {
+                    items.splice(index, 1);
+                }
+                renderItems();
+            }
+
+            if (e.target.closest('.btn-remove')) {
+                const btn = e.target.closest('.btn-remove');
+                const index = parseInt(btn.dataset.index);
+                items.splice(index, 1);
+                renderItems();
+            }
+        });
+
+        discountInput.addEventListener('input', renderItems);
+
+        form.addEventListener('submit', function (e) {
+            if (items.length === 0) {
+                e.preventDefault();
+                alert('Adicione pelo menos um item ao pedido.');
+            }
+        });
+    });
+</script>
+@endpush
