@@ -8,6 +8,7 @@ use App\Http\Controllers\{
     UserController,
     POSController,
     ReportController,
+    ProductController,
 };
 
 /*
@@ -98,6 +99,20 @@ Route::middleware('auth')->group(function () {
         Route::post('/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
         Route::post('/bulk-actions', [UserController::class, 'bulkActions'])->name('users.bulk-actions');
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gestão de Produtos (apenas administrador)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('products')->group(function () {
+        Route::get('/', [ProductController::class, 'index'])->name('products.index');
+        Route::get('/create', [ProductController::class, 'create'])->name('products.create');
+        Route::post('/', [ProductController::class, 'store'])->name('products.store');
+        Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
+        Route::put('/{product}', [ProductController::class, 'update'])->name('products.update');
+        Route::delete('/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
+    });
     
     /*
     |--------------------------------------------------------------------------
@@ -131,22 +146,42 @@ Route::middleware('auth')->group(function () {
     */
     Route::prefix('settings')->group(function () {
         Route::get('/', function () {
+            $user = auth()->user();
+            if (!$user || !in_array($user->role, ['admin', 'gerente'])) {
+                abort(403, 'Acesso não autorizado.');
+            }
             return view('settings.index');
         })->name('settings.index');
-        
+
         Route::get('/restaurant', function () {
+            $user = auth()->user();
+            if (!$user || !in_array($user->role, ['admin', 'gerente'])) {
+                abort(403, 'Acesso não autorizado.');
+            }
             return view('settings.restaurant');
         })->name('settings.restaurant');
-        
+
         Route::get('/taxes', function () {
+            $user = auth()->user();
+            if (!$user || !in_array($user->role, ['admin', 'gerente'])) {
+                abort(403, 'Acesso não autorizado.');
+            }
             return view('settings.taxes');
         })->name('settings.taxes');
-        
+
         Route::get('/printers', function () {
+            $user = auth()->user();
+            if (!$user || !in_array($user->role, ['admin', 'gerente'])) {
+                abort(403, 'Acesso não autorizado.');
+            }
             return view('settings.printers');
         })->name('settings.printers');
-        
+
         Route::get('/backup', function () {
+            $user = auth()->user();
+            if (!$user || !in_array($user->role, ['admin', 'gerente'])) {
+                abort(403, 'Acesso não autorizado.');
+            }
             return view('settings.backup');
         })->name('settings.backup');
     });

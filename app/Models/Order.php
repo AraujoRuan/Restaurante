@@ -13,21 +13,21 @@ class Order extends Model
 
     public function table()
     {
-        return $this->belongsTo(Table::class);
+        return $this->belongsTo(\App\Models\Table::class);
     }
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(\App\Models\User::class);
     }
 
     public function items()
     {
-        return $this->hasMany(OrderItem::class);
+        return $this->hasMany(\App\Models\OrderItem::class);
     }
 
     public function payments()
     {
-        return $this->hasMany(Payment::class);
+        return $this->hasMany(\App\Models\Payment::class);
     }
 }

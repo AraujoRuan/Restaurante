@@ -29,6 +29,7 @@
                                 <option value="garcom">Garçom</option>
                                 <option value="caixa">Caixa</option>
                                 <option value="cozinha">Cozinha</option>
+                                <option value="cliente">Cliente</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -128,6 +129,7 @@
                                                 @case('garcom') Garçom @break
                                                 @case('caixa') Caixa @break
                                                 @case('cozinha') Cozinha @break
+                                                @case('cliente') Cliente @break
                                             @endswitch
                                         </span>
                                     </td>

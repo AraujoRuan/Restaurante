@@ -1,18 +1,23 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\\Http\\Controllers;
 
-use App\Models\Order;
-use App\Models\Expense;
-use App\Models\Ingredient;
-use Illuminate\Http\Request;
-use Carbon\CarbonPeriod;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\\Models\\Order;
+use App\\Models\\Expense;
+use App\\Models\\Ingredient;
+use Illuminate\\Http\\Request;
+use Illuminate\\Support\\Facades\\Auth;
+use Carbon\\CarbonPeriod;
+use Barryvdh\\DomPDF\\Facade\\Pdf;
 
 class ReportController extends Controller
 {
     public function sales(Request $request)
     {
+        // Apenas administradores e gerentes podem acessar relatórios
+        if (!in_array(Auth::user()->role, ['admin', 'gerente'])) {
+            abort(403, 'Acesso não autorizado.');
+        }
         $startDate = $request->input('start_date', now()->startOfMonth());
         $endDate = $request->input('end_date', now()->endOfMonth());
         
@@ -30,6 +35,11 @@ class ReportController extends Controller
     
     public function profit(Request $request)
     {
+        // Apenas administradores e gerentes podem acessar relatórios
+        if (!in_array(Auth::user()->role, ['admin', 'gerente'])) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $startDate = $request->input('start_date', now()->startOfMonth());
         $endDate = $request->input('end_date', now()->endOfMonth());
         
@@ -81,6 +91,11 @@ class ReportController extends Controller
     
     public function generate(Request $request)
     {
+        // Apenas administradores e gerentes podem gerar relatórios em PDF
+        if (!in_array(Auth::user()->role, ['admin', 'gerente'])) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $type = $request->input('type');
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');

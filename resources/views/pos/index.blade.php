@@ -15,6 +15,30 @@
         </div>
     </div>
 
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <div class="row">
         <!-- Coluna esquerda: produtos -->
         <div class="col-lg-8 mb-4">
@@ -256,13 +280,6 @@
         });
 
         discountInput.addEventListener('input', renderItems);
-
-        form.addEventListener('submit', function (e) {
-            if (items.length === 0) {
-                e.preventDefault();
-                alert('Adicione pelo menos um item ao pedido.');
-            }
-        });
     });
 </script>
 @endpush

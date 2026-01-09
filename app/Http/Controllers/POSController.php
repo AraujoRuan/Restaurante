@@ -82,19 +82,34 @@ class POSController extends Controller
             
             DB::commit();
             
-            return response()->json([
-                'success' => true,
-                'message' => 'Pedido criado com sucesso!',
-                'order_id' => $order->id,
-                'order_code' => $order->order_code,
-            ]);
+            // Se for requisição AJAX/JSON, mantém retorno em JSON
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Pedido criado com sucesso!',
+                    'order_id' => $order->id,
+                    'order_code' => $order->order_code,
+                ]);
+            }
+
+            // Para requisições normais (form do Blade), redireciona de volta para o POS
+            return redirect()
+                ->route('pos.index')
+                ->with('success', 'Pedido criado com sucesso!');
             
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao criar pedido: ' . $e->getMessage(),
-            ], 500);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erro ao criar pedido: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return back()
+                ->with('error', 'Erro ao criar pedido: ' . $e->getMessage())
+                ->withInput();
         }
     }
     

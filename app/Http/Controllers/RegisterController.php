@@ -23,12 +23,16 @@ class RegisterController extends Controller
      */
     public function register(Request $request)
     {
-        // Validação SIMPLES com apenas campos essenciais
+        // Validação incluindo tipo de conta, telefone, endereço e aceite dos termos
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            // REMOVA phone, address, role, terms se não existirem na tabela
+            'phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string|max:500',
+            // valores vindos do select em auth.register: cliente, atendente, garcom, cozinha
+            'role' => 'required|in:cliente,atendente,garcom,cozinha',
+            'terms' => 'accepted',
         ], [
             'name.required' => 'O campo nome é obrigatório.',
             'email.required' => 'O campo e-mail é obrigatório.',
@@ -37,6 +41,9 @@ class RegisterController extends Controller
             'password.required' => 'O campo senha é obrigatório.',
             'password.min' => 'A senha deve ter pelo menos 8 caracteres.',
             'password.confirmed' => 'A confirmação da senha não coincide.',
+            'role.required' => 'Selecione o tipo de conta.',
+            'role.in' => 'Tipo de conta inválido.',
+            'terms.accepted' => 'É necessário aceitar os termos de uso e política de privacidade.',
         ]);
         
         if ($validator->fails()) {
@@ -47,13 +54,26 @@ class RegisterController extends Controller
         
         // Dados validados
         $validated = $validator->validated();
+
+        // Mapear os papéis da tela para os papéis usados no sistema
+        // (admin/gerente continuam sendo criados apenas pelo painel interno)
+        $roleMap = [
+'cliente' => 'cliente', // cliente externo com papel próprio
+            'atendente' => 'caixa',  // atende no balcão
+            'garcom' => 'garcom',
+            'cozinha' => 'cozinha',
+        ];
+        $dbRole = $roleMap[$validated['role']] ?? 'garcom';
         
-        // Criar usuário com APENAS colunas que existem
+        // Criar usuário preenchendo as colunas existentes
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            // NÃO inclua phone, address, role, status se não existirem
+            'role' => $dbRole,
+            'phone' => $validated['phone'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'active' => true,
         ]);
         
         // Fazer login automaticamente

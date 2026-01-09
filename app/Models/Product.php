@@ -9,26 +9,22 @@ class Product extends Model
 {
     use HasFactory;
 
-    /**
-     * Allow mass-assignment for all attributes.
-     * This model is only used server-side in a trusted context.
-     */
     protected $guarded = [];
 
     public function category()
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(\App\Models\Category::class);
     }
 
     public function ingredients()
     {
-        return $this->belongsToMany(Ingredient::class)
+        return $this->belongsToMany(\App\Models\Ingredient::class)
             ->withPivot('quantity')
             ->withTimestamps();
     }
 
     public function orderItems()
     {
-        return $this->hasMany(OrderItem::class);
+        return $this->hasMany(\App\Models\OrderItem::class);
     }
 }
