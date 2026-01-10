@@ -64,7 +64,7 @@ class RegisterController extends Controller
             'cozinha' => 'cozinha',
         ];
         $dbRole = $roleMap[$validated['role']] ?? 'garcom';
-        info($dbRole);
+
         // Criar usuário preenchendo as colunas existentes
         $user = User::create([
             'name' => $validated['name'],
