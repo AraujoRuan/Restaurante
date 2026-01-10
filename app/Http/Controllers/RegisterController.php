@@ -17,7 +17,7 @@ class RegisterController extends Controller
     {
         return view('auth.register');
     }
-    
+
     /**
      * Processar registro - VERSÃO SIMPLIFICADA
      */
@@ -45,13 +45,13 @@ class RegisterController extends Controller
             'role.in' => 'Tipo de conta inválido.',
             'terms.accepted' => 'É necessário aceitar os termos de uso e política de privacidade.',
         ]);
-        
+
         if ($validator->fails()) {
             return redirect()->route('register')
                 ->withErrors($validator)
                 ->withInput();
         }
-        
+
         // Dados validados
         $validated = $validator->validated();
 
@@ -64,7 +64,7 @@ class RegisterController extends Controller
             'cozinha' => 'cozinha',
         ];
         $dbRole = $roleMap[$validated['role']] ?? 'garcom';
-        
+        info($dbRole);
         // Criar usuário preenchendo as colunas existentes
         $user = User::create([
             'name' => $validated['name'],
@@ -75,14 +75,14 @@ class RegisterController extends Controller
             'address' => $validated['address'] ?? null,
             'active' => true,
         ]);
-        
+
         // Fazer login automaticamente
         Auth::login($user);
-        
+
         // 🔥 REDIRECIONAR PARA O DASHBOARD 🔥
         return redirect()->route('dashboard')->with('success', 'Conta criada com sucesso! Bem-vindo(a)!');
     }
-    
+
     /**
      * Mostrar termos de uso (opcional)
      */
@@ -93,22 +93,22 @@ class RegisterController extends Controller
             'content' => '
                 <h1>Termos de Uso - Sistema Restaurante</h1>
                 <p>Última atualização: ' . date('d/m/Y') . '</p>
-                
+
                 <h2>1. Aceitação dos Termos</h2>
                 <p>Ao se cadastrar no Sistema Restaurante, você concorda com estes termos de uso.</p>
-                
+
                 <h2>2. Uso do Sistema</h2>
                 <p>O sistema é destinado para gestão de restaurantes e estabelecimentos alimentícios.</p>
-                
+
                 <h2>3. Responsabilidades</h2>
                 <p>Você é responsável por manter a confidencialidade de sua senha.</p>
-                
+
                 <h2>4. Privacidade</h2>
                 <p>Seus dados serão tratados conforme nossa Política de Privacidade.</p>
             '
         ]);
     }
-    
+
     /**
      * Mostrar política de privacidade (opcional)
      */
@@ -119,75 +119,75 @@ class RegisterController extends Controller
             'content' => '
                 <h1>Política de Privacidade - Sistema Restaurante</h1>
                 <p>Última atualização: ' . date('d/m/Y') . '</p>
-                
+
                 <h2>1. Coleta de Dados</h2>
                 <p>Coletamos apenas os dados necessários para o funcionamento do sistema: nome, e-mail e senha.</p>
-                
+
                 <h2>2. Uso dos Dados</h2>
                 <p>Seus dados são utilizados exclusivamente para autenticação e operação do sistema.</p>
-                
+
                 <h2>3. Proteção</h2>
                 <p>Implementamos medidas de segurança para proteger seus dados.</p>
-                
+
                 <h2>4. Cookies</h2>
                 <p>Utilizamos cookies apenas para manter sua sessão ativa.</p>
             '
         ]);
     }
-    
+
     /**
      * Verificar se e-mail já existe (para AJAX)
      */
     public function checkEmail(Request $request)
     {
         $email = $request->input('email');
-        
+
         $exists = User::where('email', $email)->exists();
-        
+
         return response()->json([
             'exists' => $exists,
             'message' => $exists ? 'Este e-mail já está em uso.' : 'E-mail disponível.'
         ]);
     }
-    
+
     /**
      * Verificar força da senha (para AJAX)
      */
     public function checkPasswordStrength(Request $request)
     {
         $password = $request->input('password');
-        
+
         $strength = 0;
         $messages = [];
-        
+
         // Verifica comprimento
         if (strlen($password) >= 8) {
             $strength += 25;
         } else {
             $messages[] = 'Mínimo 8 caracteres';
         }
-        
+
         // Verifica se tem números
         if (preg_match('/[0-9]/', $password)) {
             $strength += 25;
         } else {
             $messages[] = 'Adicione números';
         }
-        
+
         // Verifica se tem letras maiúsculas
         if (preg_match('/[A-Z]/', $password)) {
             $strength += 25;
         } else {
             $messages[] = 'Adicione letras maiúsculas';
         }
-        
+
         // Verifica se tem caracteres especiais
         if (preg_match('/[^a-zA-Z0-9]/', $password)) {
             $strength += 25;
         } else {
             $messages[] = 'Adicione caracteres especiais';
         }
-        
+
         return response()->json([
             'strength' => $strength,
             'level' => $strength < 50 ? 'fraca' : ($strength < 75 ? 'média' : 'forte'),
